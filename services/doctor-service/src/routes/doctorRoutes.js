@@ -8,6 +8,7 @@ const {
     updateDoctorAvailability,
     deleteDoctor
 } = require("../controllers/doctorController");
+const validateObjectId = require("../middleware/validateObjectId");
 
 const router = express.Router();
 
@@ -23,12 +24,12 @@ router.route("/")
     .post(createDoctor)
     .get(getDoctors);
 
-router.patch("/:id/status", updateDoctorStatus);
-router.patch("/:id/availability", updateDoctorAvailability);
+router.patch("/:id/status", validateObjectId, updateDoctorStatus);
+router.patch("/:id/availability", validateObjectId, updateDoctorAvailability);
 
 router.route("/:id")
-    .get(getDoctorById)
-    .put(updateDoctor)
-    .delete(deleteDoctor);
+    .get(validateObjectId, getDoctorById)
+    .put(validateObjectId, updateDoctor)
+    .delete(validateObjectId, deleteDoctor);
 
 module.exports = router;

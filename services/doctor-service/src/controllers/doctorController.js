@@ -12,6 +12,16 @@ const DAY_VALUES = [
 
 const STATUS_VALUES = ["active", "inactive", "on-leave"];
 const MODE_VALUES = ["in-person", "online", "both"];
+const SORT_VALUES = [
+    "newest",
+    "oldest",
+    "feeAsc",
+    "feeDesc",
+    "experienceDesc",
+    "experienceAsc",
+    "nameAsc"
+];
+const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const asyncHandler = (handler) => async (req, res, next) => {
     try {
@@ -76,6 +86,11 @@ const parseNumber = (value) => {
     return Number.isNaN(parsedValue) ? undefined : parsedValue;
 };
 
+const timeToMinutes = (timeValue) => {
+    const [hours, minutes] = timeValue.split(":").map(Number);
+    return (hours * 60) + minutes;
+};
+
 const validateDoctorPayload = (payload, { isUpdate = false } = {}) => {
     const requiredFields = [
         "fullName",
@@ -107,6 +122,13 @@ const validateDoctorPayload = (payload, { isUpdate = false } = {}) => {
         throw createError("A valid email address is required", 400);
     }
 
+    if (
+        payload.phone &&
+        !/^[0-9+\-\s()]{7,20}$/.test(payload.phone)
+    ) {
+        throw createError("A valid phone number is required", 400);
+    }
+
     if (payload.consultationFee !== undefined && payload.consultationFee < 0) {
         throw createError("Consultation fee cannot be negative", 400);
     }
@@ -126,6 +148,14 @@ const validateDoctorPayload = (payload, { isUpdate = false } = {}) => {
     }
 
     if (
+        payload.specialties &&
+        Array.isArray(payload.specialties) &&
+        payload.specialties.length === 0
+    ) {
+        throw createError("At least one specialty is required", 400);
+    }
+
+    if (
         payload.availability &&
         payload.availability.some(
             (slot) =>
@@ -135,6 +165,32 @@ const validateDoctorPayload = (payload, { isUpdate = false } = {}) => {
     ) {
         throw createError(
             "Availability entries must have a valid dayOfWeek and mode",
+            400
+        );
+    }
+
+    if (
+        payload.availability &&
+        payload.availability.some(
+            (slot) =>
+                !TIME_REGEX.test(slot.startTime) ||
+                !TIME_REGEX.test(slot.endTime)
+        )
+    ) {
+        throw createError(
+            "Availability times must use 24-hour HH:mm format",
+            400
+        );
+    }
+
+    if (
+        payload.availability &&
+        payload.availability.some(
+            (slot) => timeToMinutes(slot.startTime) >= timeToMinutes(slot.endTime)
+        )
+    ) {
+        throw createError(
+            "Availability endTime must be later than startTime",
             400
         );
     }
@@ -237,7 +293,16 @@ const buildDoctorFilters = (query) => {
     }
 
     if (query.status) {
-        filters.status = query.status.trim().toLowerCase();
+        const normalizedStatus = query.status.trim().toLowerCase();
+
+        if (!STATUS_VALUES.includes(normalizedStatus)) {
+            throw createError(
+                `status must be one of: ${STATUS_VALUES.join(", ")}`,
+                400
+            );
+        }
+
+        filters.status = normalizedStatus;
     }
 
     const isAvailable = parseBoolean(query.isAvailable);
@@ -247,6 +312,14 @@ const buildDoctorFilters = (query) => {
 
     const minFee = parseNumber(query.minFee);
     const maxFee = parseNumber(query.maxFee);
+    if (
+        minFee !== undefined &&
+        maxFee !== undefined &&
+        minFee > maxFee
+    ) {
+        throw createError("minFee cannot be greater than maxFee", 400);
+    }
+
     if (minFee !== undefined || maxFee !== undefined) {
         filters.consultationFee = {};
 
@@ -265,11 +338,29 @@ const buildDoctorFilters = (query) => {
     }
 
     if (query.availableDay) {
-        filters["availability.dayOfWeek"] = query.availableDay.trim().toLowerCase();
+        const availableDay = query.availableDay.trim().toLowerCase();
+
+        if (!DAY_VALUES.includes(availableDay)) {
+            throw createError(
+                `availableDay must be one of: ${DAY_VALUES.join(", ")}`,
+                400
+            );
+        }
+
+        filters["availability.dayOfWeek"] = availableDay;
     }
 
     if (query.mode) {
-        filters["availability.mode"] = query.mode.trim().toLowerCase();
+        const mode = query.mode.trim().toLowerCase();
+
+        if (!MODE_VALUES.includes(mode)) {
+            throw createError(
+                `mode must be one of: ${MODE_VALUES.join(", ")}`,
+                400
+            );
+        }
+
+        filters["availability.mode"] = mode;
     }
 
     if (andConditions.length > 0) {
@@ -286,10 +377,18 @@ const getSortOption = (sortBy = "newest") => {
         feeAsc: { consultationFee: 1 },
         feeDesc: { consultationFee: -1 },
         experienceDesc: { yearsOfExperience: -1 },
+        experienceAsc: { yearsOfExperience: 1 },
         nameAsc: { fullName: 1 }
     };
 
-    return sortOptions[sortBy] || sortOptions.newest;
+    if (!SORT_VALUES.includes(sortBy)) {
+        throw createError(
+            `sortBy must be one of: ${SORT_VALUES.join(", ")}`,
+            400
+        );
+    }
+
+    return sortOptions[sortBy];
 };
 
 const createDoctor = asyncHandler(async (req, res) => {
@@ -305,8 +404,23 @@ const createDoctor = asyncHandler(async (req, res) => {
 const getDoctors = asyncHandler(async (req, res) => {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+
+    if (
+        req.query.page !== undefined &&
+        (!Number.isInteger(Number(req.query.page)) || Number(req.query.page) < 1)
+    ) {
+        throw createError("page must be a positive integer", 400);
+    }
+
+    if (
+        req.query.limit !== undefined &&
+        (!Number.isInteger(Number(req.query.limit)) || Number(req.query.limit) < 1)
+    ) {
+        throw createError("limit must be a positive integer", 400);
+    }
+
     const filters = buildDoctorFilters(req.query);
-    const sort = getSortOption(req.query.sortBy);
+    const sort = getSortOption(req.query.sortBy || "newest");
 
     const [doctors, total] = await Promise.all([
         Doctor.find(filters)
