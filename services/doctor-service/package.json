@@ -1,8 +1,8 @@
 {
   "name": "doctor-service",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Doctor management microservice for the Arogya platform",
+  "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
