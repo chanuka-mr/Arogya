@@ -124,6 +124,10 @@ const doctorSchema = new mongoose.Schema(
 );
 
 doctorSchema.index({ fullName: 1, email: 1 });
-doctorSchema.index({ specialties: 1, locations: 1, status: 1 });
+doctorSchema.index({ specialties: 1 });
+doctorSchema.index({ locations: 1 });
+doctorSchema.index({ status: 1 });
+doctorSchema.index({ consultationFee: 1 });
+doctorSchema.index({ yearsOfExperience: -1 });
 
 module.exports = mongoose.model("Doctor", doctorSchema);
