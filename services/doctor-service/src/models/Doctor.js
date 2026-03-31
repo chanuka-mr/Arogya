@@ -1,4 +1,9 @@
 const mongoose = require("mongoose");
+const {
+    DAY_VALUES,
+    MODE_VALUES,
+    STATUS_VALUES
+} = require("../constants/doctorConstants");
 
 const availabilitySchema = new mongoose.Schema(
     {
@@ -6,15 +11,7 @@ const availabilitySchema = new mongoose.Schema(
             type: String,
             required: true,
             lowercase: true,
-            enum: [
-                "monday",
-                "tuesday",
-                "wednesday",
-                "thursday",
-                "friday",
-                "saturday",
-                "sunday"
-            ]
+            enum: DAY_VALUES
         },
         startTime: {
             type: String,
@@ -30,7 +27,7 @@ const availabilitySchema = new mongoose.Schema(
             type: String,
             required: true,
             lowercase: true,
-            enum: ["in-person", "online", "both"],
+            enum: MODE_VALUES,
             default: "in-person"
         }
     },
@@ -109,7 +106,7 @@ const doctorSchema = new mongoose.Schema(
         status: {
             type: String,
             lowercase: true,
-            enum: ["active", "inactive", "on-leave"],
+            enum: STATUS_VALUES,
             default: "active"
         },
         availability: {

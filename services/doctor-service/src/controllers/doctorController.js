@@ -1,27 +1,11 @@
 const Doctor = require("../models/Doctor");
-
-const DAY_VALUES = [
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday"
-];
-
-const STATUS_VALUES = ["active", "inactive", "on-leave"];
-const MODE_VALUES = ["in-person", "online", "both"];
-const SORT_VALUES = [
-    "newest",
-    "oldest",
-    "feeAsc",
-    "feeDesc",
-    "experienceDesc",
-    "experienceAsc",
-    "nameAsc"
-];
-const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const {
+    DAY_VALUES,
+    STATUS_VALUES,
+    MODE_VALUES,
+    SORT_VALUES,
+    TIME_REGEX
+} = require("../constants/doctorConstants");
 
 const asyncHandler = (handler) => async (req, res, next) => {
     try {
@@ -89,6 +73,14 @@ const parseNumber = (value) => {
 const timeToMinutes = (timeValue) => {
     const [hours, minutes] = timeValue.split(":").map(Number);
     return (hours * 60) + minutes;
+};
+
+const matchesRequestedMode = (slotMode, requestedMode) => {
+    if (!requestedMode || requestedMode === "both") {
+        return true;
+    }
+
+    return slotMode === "both" || slotMode === requestedMode;
 };
 
 const validateDoctorPayload = (payload, { isUpdate = false } = {}) => {
@@ -391,6 +383,17 @@ const getSortOption = (sortBy = "newest") => {
     return sortOptions[sortBy];
 };
 
+const buildDoctorSummary = (doctor) => ({
+    id: doctor._id,
+    fullName: doctor.fullName,
+    specialties: doctor.specialties,
+    consultationFee: doctor.consultationFee,
+    locations: doctor.locations,
+    isAvailable: doctor.isAvailable,
+    status: doctor.status,
+    availability: doctor.availability
+});
+
 const createDoctor = asyncHandler(async (req, res) => {
     const payload = buildDoctorPayload(req.body);
     const doctor = await Doctor.create(payload);
@@ -536,6 +539,57 @@ const deleteDoctor = asyncHandler(async (req, res) => {
     });
 });
 
+const getDoctorSummary = asyncHandler(async (req, res) => {
+    const doctor = await Doctor.findById(req.params.id);
+
+    if (!doctor) {
+        throw createError("Doctor not found", 404);
+    }
+
+    res.status(200).json({
+        data: buildDoctorSummary(doctor)
+    });
+});
+
+const checkDoctorAvailability = asyncHandler(async (req, res) => {
+    const doctor = await Doctor.findById(req.params.id);
+
+    if (!doctor) {
+        throw createError("Doctor not found", 404);
+    }
+
+    const requestedDay = String(req.body.dayOfWeek).trim().toLowerCase();
+    const requestedStart = timeToMinutes(String(req.body.startTime).trim());
+    const requestedEnd = timeToMinutes(String(req.body.endTime).trim());
+    const requestedMode = String(req.body.mode || "in-person").trim().toLowerCase();
+
+    const matchingSlot = doctor.availability.find((slot) => (
+        slot.dayOfWeek === requestedDay &&
+        matchesRequestedMode(slot.mode, requestedMode) &&
+        timeToMinutes(slot.startTime) <= requestedStart &&
+        timeToMinutes(slot.endTime) >= requestedEnd
+    ));
+
+    const canAcceptAppointment = Boolean(
+        doctor.status === "active" &&
+        doctor.isAvailable &&
+        matchingSlot
+    );
+
+    res.status(200).json({
+        data: {
+            doctorId: doctor._id,
+            canAcceptAppointment,
+            status: doctor.status,
+            isAvailable: doctor.isAvailable,
+            matchedSlot: matchingSlot || null,
+            reason: canAcceptAppointment
+                ? "Doctor is available for the requested time slot"
+                : "Doctor is not available for the requested time slot"
+        }
+    });
+});
+
 module.exports = {
     createDoctor,
     getDoctors,
@@ -543,5 +597,7 @@ module.exports = {
     updateDoctor,
     updateDoctorStatus,
     updateDoctorAvailability,
-    deleteDoctor
+    deleteDoctor,
+    getDoctorSummary,
+    checkDoctorAvailability
 };

@@ -1,0 +1,106 @@
+openapi: 3.0.3
+info:
+  title: Arogya Doctor Service API
+  version: 1.0.0
+  description: API specification for the doctor management microservice.
+servers:
+  - url: http://localhost:5002
+paths:
+  /health:
+    get:
+      summary: Service health check
+      responses:
+        '200':
+          description: Service is healthy
+  /api/doctors:
+    get:
+      summary: List doctor profiles
+      responses:
+        '200':
+          description: Doctors returned successfully
+    post:
+      summary: Create a doctor profile
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Doctor created successfully
+  /api/doctors/{id}:
+    get:
+      summary: Get a doctor by id
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      responses:
+        '200':
+          description: Doctor returned successfully
+    put:
+      summary: Update a doctor profile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      responses:
+        '200':
+          description: Doctor updated successfully
+    delete:
+      summary: Delete a doctor profile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      responses:
+        '200':
+          description: Doctor deleted successfully
+  /api/doctors/{id}/status:
+    patch:
+      summary: Update doctor status
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      responses:
+        '200':
+          description: Status updated successfully
+  /api/doctors/{id}/availability:
+    patch:
+      summary: Update doctor availability
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      responses:
+        '200':
+          description: Availability updated successfully
+  /api/doctors/{id}/summary:
+    get:
+      summary: Integration-friendly doctor summary
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      responses:
+        '200':
+          description: Doctor summary returned successfully
+  /api/doctors/{id}/availability/check:
+    post:
+      summary: Check whether a doctor can accept an appointment slot
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      responses:
+        '200':
+          description: Availability check completed
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    DoctorId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
